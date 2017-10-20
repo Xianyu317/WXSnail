@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<c3p0-config>
+
+  <named-config name="c3p0"> 
+	
+   <property name="user">root</property>
+    <property name="password">123456</property>
+    <property name="jdbcUrl">jdbc:mysql://localhost:3306/db_snail</property>   
+    
+    <property name="driverClass">com.mysql.jdbc.Driver</property>
+    
+    <!-- <property name="acquireIncrement">10</property>
+    <property name="initialPoolSize">25</property>
+    <property name="minPoolSize">15</property>
+    <property name="maxPoolSize">60</property>
+    <property name="maxIdleTime">10</property>  -->
+
+    <property name="maxStatements">20</property>  
+    <property name="maxStatementsPerConnection">5</property>
+    <property name="checkoutTimeout">30000</property>
+    <property name="autoCommitOnClose">false</property> 
+
+  </named-config>
+
+</c3p0-config>
