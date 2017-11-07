@@ -21,15 +21,14 @@
 	
 	function searchUser(){
 		$('#dg').datagrid('load',{
-			s_userName:$("#s_userName").val(),
-			s_roleId:$('#s_roleId').combobox("getValue")
+			state:$("#s_state").val()
 		});
 	}
 	
 	function openUserAddDialog(){
 		$("#dlg").dialog("open").dialog("setTitle","添加用户信息");
 		$("#userName").removeAttr("readonly");
-		url="user?action=save";
+		url="graph?action=add";
 	}
 	
 	function openUserModifyDialog(){
@@ -109,12 +108,12 @@
 		}
 		var strIds=[];
 		for(var i=0;i<selectedRows.length;i++){
-			strIds.push(selectedRows[i].userId);
+			strIds.push(selectedRows[i].graph_id);
 		}
 		var ids=strIds.join(",");
 		$.messager.confirm("系统提示","您确认要删除这<font color=red>"+selectedRows.length+"</font>条数据吗？",function(r){
 			if(r){
-				$.post("user?action=delete",{delIds:ids},function(result){
+				$.post("graph?action=delete",{delIds:ids},function(result){
 					if(result.success){
 						$.messager.alert('系统提示',"您已成功删除<font color=red>"+result.delNums+"</font>条数据！");
 						$("#dg").datagrid("reload");
@@ -128,54 +127,61 @@
 </script>
 </head>
 <body style="margin: 1px;">
-<table id="dg" title="用户管理" class="easyui-datagrid" fitColumns="true" 
-    pagination="true" rownumbers="true" url="user?action=list" fit="true" toolbar="#tb">
+<table id="dg" title="广告管理" class="easyui-datagrid" fitColumns="true" 
+    pagination="true" rownumbers="true" url="graph?action=list" fit="true" toolbar="#tb">
     <thead>
     	<tr>
     		<th field="cb" checkbox="true" align="center"></th>
-    		<th field="userId" width="50" align="center">编号</th>
-    		<th field="userName" width="100" align="center">用户名</th>
-    		<th field="password" width="100" align="center">用户密码</th>
-    		<th field="roleId" width="150" align="center" hidden="true">用户角色ID</th>
-    		<th field="roleName" width="150" align="center">用户角色</th>
-    		<th field="userDescription" width="300" align="center">备注</th>
+    		<th field="order_num" width="50" align="center">广告顺序号</th>
+    		<th field="graph_path" width="200" align="center">广告地址</th>
+    		<th field="graph_id" width="150" align="center" hidden="true">用户角色ID</th>
+    		<th field="create_time" width="150" align="center">创建时间</th>
+    		<th field="statestr" width="150" align="center">广告状态</th>
+    		<th field="remark" width="300" align="center">备注</th>
     	</tr>
     </thead>
 </table>
 <div id="tb">
 	<div>
 		<a href="javascript:openUserAddDialog()" class="easyui-linkbutton" iconCls="icon-add" plain="true">添加</a>
-		<a href="javascript:openUserModifyDialog()" class="easyui-linkbutton" iconCls="icon-edit" plain="true">修改</a>
 		<a href="javascript:deleteUser()" class="easyui-linkbutton" iconCls="icon-remove" plain="true">删除</a>
 	</div>
 	<div>
-		&nbsp;用户名：&nbsp;<input type="text" name="s_userName" id="s_userName" size="20" onkeydown="if(event.keyCode==13) searchUser()"/>
-		&nbsp;用户角色：&nbsp;<input class="easyui-combobox" id="s_roleId" name="s_roleId" size="20" data-options="editable:false,panelHeight:'auto',valueField:'roleId',textField:'roleName',url:'role?action=comBoList'"/>
+		广告状态：&nbsp;
+		<select class="easyui-combobox" name="s_state" id="s_state" size="150">
+		    <option value="1">有效</option>
+		    <option value="0">无效</option>
+		</select>
 		<a href="javascript:searchUser()" class="easyui-linkbutton" iconCls="icon-search" plain="true">搜索</a>
 	</div>
 </div>
 
 <div id="dlg" class="easyui-dialog" style="width: 570px;height: 350px;padding: 10px 20px"
   closed="true" buttons="#dlg-buttons">
-  <form id="fm" method="post">
+  <form id="fm" method="post" enctype="multipart/form-data" accept="image/gif, image/jpeg,image/jpg, image/png">
   	<table cellspacing="5px;">
   		<tr>
-  			<td>用户名：</td>
-  			<td><input type="text" id="userName" name="userName" class="easyui-validatebox" required="true"/></td>
-  			<td>&nbsp;&nbsp;&nbsp;&nbsp;</td>
-  			<td>用户密码：</td>
-  			<td><input type="text" id="password" name="password" class="easyui-validatebox" required="true"/></td>
+  			<td>广告图片：</td>
+  			<td>
+				<input  id="file" type="file" name="file"/><br/> 
+  			</td>
   		</tr>
   		<tr>
-  			<td>角色名称：</td>
-  			<td><input type="hidden" id="roleId" name="roleId" /><input type="text" id="roleName" name="roleName" readonly="readonly" class="easyui-validatebox" required="true"/></td>
-  			<td>&nbsp;&nbsp;&nbsp;&nbsp;</td>
-  			<td colspan="2"><a href="javascript:openRoleChooseDialog()" class="easyui-linkbutton" >选择角色</a></td>
+  			<td>广告状态：</td>
+  			<td><select class="easyui-combobox" name="state" id="state" width="150px">
+				    <option value="1">有效</option>
+				    <option value="0">无效</option>
+				</select>
+			</td>
+  		</tr>
+  		<tr>
+  			<td>展示顺序号：</td>
+  			<td><input type="text" id="orderNum" name="orderNum" class="easyui-validatebox"  width="150px"/></td>
   		</tr>
   		<tr>
   			<td valign="top">备注：</td>
   			<td colspan="4">
-  				<textarea rows="7" cols="50" name="userDescription" id="userDescription"></textarea>
+  				<textarea rows="7" cols="50" name="remark" id="remark"></textarea>
   			</td>
   		</tr>
   	</table>

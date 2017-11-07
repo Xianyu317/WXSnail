@@ -5,20 +5,17 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload.FileUploadException;
+import org.apache.commons.fileupload.disk.DiskFileItemFactory;
+import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.apache.commons.lang.StringUtils;
-import org.apache.tomcat.util.http.fileupload.FileItem;
-import org.apache.tomcat.util.http.fileupload.FileUploadException;
-import org.apache.tomcat.util.http.fileupload.RequestContext;
-import org.apache.tomcat.util.http.fileupload.disk.DiskFileItemFactory;
-import org.apache.tomcat.util.http.fileupload.servlet.ServletFileUpload;
 
 import com.snail.dao.ScrollGraphDao;
 import com.snail.model.PageBean;
@@ -26,10 +23,10 @@ import com.snail.model.ScrollGraph;
 import com.snail.util.Constant;
 import com.snail.util.DbUtil;
 import com.snail.util.JsonUtil;
-import com.snail.util.ObjectToMapUtil;
 import com.snail.util.ResponseUtil;
 import com.snail.util.StringUtil;
 import com.snail.web.base.BaseHttpServlet;
+import com.snail.web.vo.CommonDataVO;
 import com.snail.web.vo.CommonVO;
 
 import net.sf.json.JSONArray;
@@ -40,6 +37,7 @@ public class GraphServlet extends BaseHttpServlet {
 	DbUtil dbUtil = new DbUtil();
 	ScrollGraphDao scrollGraphDao = new ScrollGraphDao();
 	private static final long serialVersionUID = 1L;
+	
 
 	public GraphServlet() {
 		super();
@@ -74,6 +72,7 @@ public class GraphServlet extends BaseHttpServlet {
 		String rows = request.getParameter("rows");
 		ScrollGraph scrollGraph = new ScrollGraph();
 		String remark = request.getParameter("remark");
+		String state = request.getParameter("state");
 		
 		PageBean pageBean = new PageBean(StringUtils.isNotBlank(page) ? Integer.parseInt(page) : 1, StringUtils.isNotBlank(rows) ? Integer.parseInt(rows) : 10);
 		if (StringUtil.isNotEmpty(remark)) {
@@ -84,22 +83,25 @@ public class GraphServlet extends BaseHttpServlet {
 		try {
 			con = dbUtil.getConnection();
 			JSONObject result = new JSONObject();
-			JSONArray jsonArray = JsonUtil.formatRsToJsonArray(scrollGraphDao.scrollGraphList(con, pageBean, scrollGraph));
+			JSONArray jsonArray = JsonUtil.formatRsToJsonArray(scrollGraphDao.scrollGraphList(con, pageBean, scrollGraph,state));
 			JSONArray array = new JSONArray();
 			for(Object obj:jsonArray){
 				JSONObject objGraph = (JSONObject) obj;
 				String graph_path = (String) objGraph.get("graph_path");
 				StringBuffer contextPath = request.getRequestURL();
-				graph_path = contextPath.substring(0, contextPath.indexOf("/graph")).toString()+graph_path;
-				objGraph.put("graph_path", graph_path);
+				if(contextPath.indexOf("/upload/image")>0){
+					graph_path = contextPath.substring(0, contextPath.indexOf("/upload/image")).toString()+graph_path;
+					objGraph.put("graph_path", graph_path);
+				}
 				array.add(objGraph);
 			}
 	
 			int total = scrollGraphDao.scrollGraphCount(con, scrollGraph);
 			result.put("rows", array);
+			result.put("page", page);
 			result.put("total", total);
 			log.info("result===="+result);
-			ResponseUtil.write(response, result);
+			ResponseUtil.write(response, new CommonDataVO<JSONObject>(result));
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {
@@ -112,44 +114,64 @@ public class GraphServlet extends BaseHttpServlet {
 	}
 
 	private void delete(HttpServletRequest request, HttpServletResponse response) throws SQLException {
-		String graphId = request.getParameter("graphId");
+		String graphIds = request.getParameter("graphIds");
 		CommonVO commonVO = null;
-		if (StringUtils.isBlank(graphId)) {
+		if (StringUtils.isBlank(graphIds)) {
 			commonVO = new CommonVO(Constant.RSP_FAIL, "广告ID不能为空");
 		} else {
 			Connection con = dbUtil.getConnection();
-			scrollGraphDao.delete(con, graphId);
+			scrollGraphDao.delete(con, graphIds);
 			commonVO = new CommonVO();
 		}
 		ResponseUtil.write(response, commonVO);
 	}
 	
 	private void add(HttpServletRequest request, HttpServletResponse response) {
+		String graphPath = "";
+		String state = "";
+		String remark = "";
+		String orderNum = "";
+		
 		if (ServletFileUpload.isMultipartContent(request)) {
-			try {
-				// 1. 创建DiskFileItemFactory对象，设置缓冲区大小和临时文件目录
-				DiskFileItemFactory factory = new DiskFileItemFactory();
-				// log.info(System.getProperty("java.io.tmpdir"));//默认临时文件夹
-				// 2. 创建ServletFileUpload对象，并设置上传文件的大小限制。
-				ServletFileUpload sfu = new ServletFileUpload(factory);
-				sfu.setSizeMax(10 * 1024 * 1024);// 以byte为单位 不能超过10M 1024byte=1kb 1024kb=1M 1024M = 1G
-				sfu.setHeaderEncoding("utf-8");
-				// 3. 调用ServletFileUpload.parseRequest方法解析request对象，得到一个保存了所有上传内容的List对象。
-				List<FileItem> fileItemList = sfu.parseRequest((RequestContext) request);
-				Iterator<FileItem> fileItems = fileItemList.iterator();
-				// 4. 遍历list，每迭代一个FileItem对象，调用其isFormField方法判断是否是上传文件
-				while (fileItems.hasNext()) {
-					FileItem fileItem = fileItems.next();
-					// 普通表单元素
-					if (fileItem.isFormField()) {
-						String name = fileItem.getFieldName();// name属性值
-						String value = fileItem.getString("utf-8");// name对应的value值
-
-						log.info(name + " = " + value);
-					}
-					// <input type="file">的上传文件的元素
-					else {
-						String fileName = fileItem.getName();// 文件名称
+	        DiskFileItemFactory factory = new DiskFileItemFactory();// 获得磁盘文件条目工厂  
+	                // 获取服务器下的工程文件中image文件夹的路径  
+	        String path=request.getSession().getServletContext().getRealPath("upload/image");  
+	        System.out.println("文件保存路径：" + path);  
+	        /** 
+	         * 如果没以下两行设置的话，上传大的 文件 会占用 很多内存， 设置暂时存放的 存储室 , 这个存储室，可以和 最终存储文件 的目录不同 原理 
+	         * 它是先存到 暂时存储室，然后在真正写到 对应目录的硬盘上， 按理来说 当上传一个文件时，其实是上传了两份，第一个是以 .tem 格式的 
+	         * 然后再将其真正写到 对应目录的硬盘上 
+	         */  
+	        factory.setRepository(new File(path));  
+	        // 设置 缓存的大小，当上传文件的容量超过该缓存时，直接放到 暂时存储室  
+	        factory.setSizeThreshold(1024 * 1024);  
+	        // 高水平的API文件上传处理  
+	        ServletFileUpload upload = new ServletFileUpload(factory);  
+	        try {  
+	            // 可以上传多个文件  
+	            List<FileItem> list = (List<FileItem>) upload.parseRequest(request);  
+	  
+	            for (FileItem item : list) {  
+	                // 获取表单的属性名字  
+	                String name = item.getFieldName();  
+	  
+	                // 如果获取的 表单信息是普通的 文本 信息  
+	                if (item.isFormField()) {  
+	                    // 获取用户具体输入的字符串 ，名字起得挺好，因为表单提交过来的是 字符串类型的  
+	                    String value = item.getString();  
+	                    if("state".equals(name)){
+	                    	state = value;
+	                    }else if("remark".equals(name)){
+	                    	remark = value;
+	                    }else if("orderNum".equals(name)){
+	                    	orderNum = value;
+	                    }
+	  
+	                    request.setAttribute(name, value);  
+	                }  
+	                // 对传入的非 简单的字符串进行处理 ，比如说二进制的 图片，电影这些  
+	                else {  
+	                	String fileName = item.getName();// 文件名称
 						log.info("原文件名：" + fileName);// Koala.jpg
 						String suffix = fileName.substring(fileName.lastIndexOf('.'));
 						log.info("扩展名：" + suffix);// .jpg
@@ -157,26 +179,35 @@ public class GraphServlet extends BaseHttpServlet {
 						String newFileName = new Date().getTime() + suffix;
 						log.info("新文件名：" + newFileName);// image\1478509873038.jpg
 						// 5. 调用FileItem的write()方法，写入文件
-						File file = new File(getServletContext().getRealPath("upload") + newFileName);
+//						StringBuffer contextPath = request.getRequestURL();
+//						
+//						File file = new File(contextPath.substring(0, contextPath.indexOf("/graph")).toString()+ "/graph");
+						File file = new File(getServletContext().getRealPath("upload/image") + newFileName);
+						graphPath = newFileName;
 						log.info(file.getAbsolutePath());
-						fileItem.write(file);
-						// 6. 调用FileItem的delete()方法，删除临时文件
-						fileItem.delete();
-						
-						/** 存储到数据库  */
-						String remark = request.getParameter("remark");
-						ScrollGraph graph = new ScrollGraph();
-						graph.setGraphPath(newFileName);
-						graph.setRemark(remark);
-						scrollGraphDao.addScrollGraph(graph);
-					}
-				}
-				response.sendRedirect(request.getContextPath()+ "/upImage.html");
-			} catch (FileUploadException e) {
-				e.printStackTrace();
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
+						item.write(file);
+						item.delete();
+	                }  
+	            }  
+	  
+	        } catch (FileUploadException e) {  
+	            // TODO Auto-generated catch block  
+	            e.printStackTrace();  
+	        } catch (Exception e) {  
+	            // TODO Auto-generated catch block  
+	            e.printStackTrace();  
+	        }  
+	        
+	        ScrollGraph graph =  new ScrollGraph();
+	        graph.setGraphPath(graphPath);
+	        graph.setOrderNum(Integer.parseInt(StringUtils.isEmpty(orderNum)?"1":orderNum));
+	        graph.setRemark(remark);
+	        graph.setState(Integer.parseInt(StringUtils.isEmpty(state)?"1":state));
+	        scrollGraphDao.addScrollGraph(graph);
+	        
+	        JSONObject result=new JSONObject();
+			result.put("success", true);
+			ResponseUtil.write(response, result);
 		}
 	}
 	
@@ -184,7 +215,7 @@ public class GraphServlet extends BaseHttpServlet {
 	public void init() throws ServletException {
 		// 在系统启动的时候，就开始初始化，在初始化时，检查上传图片的文件夹和存放临时文件的文件夹是否存在，如果不存在，就创建
 		// 获取根目录对应的真实物理路径
-		File uploadPath = new File(getServletContext().getRealPath("upload"));
+		File uploadPath = new File(getServletContext().getRealPath("upload/image"));
 		log.info("uploadPath=" + uploadPath);
 		// 如果目录不存在
 		if (!uploadPath.exists()) {

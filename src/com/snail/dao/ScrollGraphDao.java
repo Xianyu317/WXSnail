@@ -33,7 +33,7 @@ public class ScrollGraphDao extends BaseDao {
 
 		try {
 			connection = DbUtil.getConnection();
-			String sql = "INSERT INTO scroll_graph (graph_path,order_num,remark,state) VALUES (?,?,?,?)";
+			String sql = "INSERT INTO scroll_graph (graph_path,order_num,remark,state,create_time,update_time) VALUES (?,?,?,?,now(),now())";
 			DbUtil.beginTx(connection);
 			int isSuccess = qR.update(connection, sql, graph.getGraphPath(), graph.getOrderNum(), graph.getRemark(),
 					graph.getState());
@@ -53,7 +53,7 @@ public class ScrollGraphDao extends BaseDao {
 		return result;
 	}
 
-	public ResultSet scrollGraphList(Connection con, PageBean pageBean, ScrollGraph scrollGraph) throws Exception {
+	public ResultSet scrollGraphList(Connection con, PageBean pageBean, ScrollGraph scrollGraph,String state) throws Exception {
 //		StringBuffer sb = new StringBuffer(
 //				"select goods_id,goods_name,goods_price,type_id,stock_size,company,simple_des,detail_des,master_img,slave_img,carry_fare,carry_fare_des,keyword,remark, (case when state = 1 then '正常' else '删除'  end) as state,create_time,update_time from scroll_graph g where  g.state=1 ");
 //
@@ -61,8 +61,12 @@ public class ScrollGraphDao extends BaseDao {
 //			sb.append(" and remark like '%" + scrollGraph.getRemark() + "%'");
 //		}
 		StringBuffer sb = new StringBuffer(
-				"select graph_id,graph_path,order_num,remark,state,create_time from scroll_graph g where  g.state=1 ");
-
+				"select graph_id,graph_path,order_num,remark,state,(case state when 1 then '有效' else '无效' end) statestr,create_time from scroll_graph g where  1=1 ");
+		if(StringUtil.isNotEmpty(state)){
+			sb.append(" and g.state=" + state);
+		}else{
+			sb.append(" and g.state=1 ");
+		}
 		
 		sb.append(" ORDER BY order_num ASC");
 
@@ -87,10 +91,12 @@ public class ScrollGraphDao extends BaseDao {
 		}
 	}
 	
-	public int delete(Connection con, String graphId) throws SQLException {
-		String sql = "delete from scroll_graph where graph_id = ?";
+	public int delete(Connection con, String graphIds) throws SQLException {
+		String sql = "delete from scroll_graph where graph_id in (" + graphIds + ")";
 		PreparedStatement pstmt = con.prepareStatement(sql);
-		pstmt.setString(1, graphId);
+//		String sql = "delete from scroll_graph where graph_id = ?";
+//		PreparedStatement pstmt = con.prepareStatement(sql);
+//		pstmt.setString(1, graphId);
 		return pstmt.executeUpdate();
 	}
 }

@@ -112,6 +112,14 @@
 		<url-pattern>/address</url-pattern>
 	</servlet-mapping>
 
-
+	<servlet>
+		<servlet-name>LoginServlet</servlet-name>
+		<servlet-class>com.snail.web.LoginServlet</servlet-class>
+	</servlet>
+	
+	<servlet-mapping>
+		<servlet-name>LoginServlet</servlet-name>
+		<url-pattern>/login</url-pattern>
+	</servlet-mapping>
 
 </web-app>
